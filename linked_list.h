@@ -3,9 +3,10 @@
 #include <stdlib.h>
 #include "common_defs.h"
 #include <stdint.h>
+#include "memory_manager.h"
 
 typedef struct Node {
-    uint16_t value;
+    uint16_t data;
     struct Node* next;
 } Node;
 
