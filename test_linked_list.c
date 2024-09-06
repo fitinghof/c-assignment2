@@ -102,5 +102,6 @@ int main()
     test_insert_after();
     test_delete();
     test_search();
+    printf("Node size: %ld bytes\n", sizeof(Node));
     return 0;
 }

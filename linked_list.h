@@ -5,9 +5,9 @@
 #include <stdint.h>
 #include "memory_manager.h"
 
-typedef struct Node {
-    uint16_t data;
+typedef struct __attribute__((packed))Node {
     struct Node* next;
+    uint16_t data;
 } Node;
 
 void list_init(Node** head);
