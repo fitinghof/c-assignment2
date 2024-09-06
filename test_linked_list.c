@@ -94,7 +94,6 @@ void test_search()
     list_cleanup(&head);
 }
 
-// Main function to run all tests
 int main()
 {
     test_insert();
