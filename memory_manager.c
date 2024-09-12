@@ -111,13 +111,13 @@ void *mem_resize(void *block, size_t size) {
         unlock_allocation();
     }
     void* new_block = mem_alloc(size);
-    unlock_allocation();
 
     if(!new_block) {
         set_bit(block_starts_, start_index);
         set_bit(block_ends_, end_index);
         return NULL;
     }
+    unlock_allocation();
     if(new_block == block) return block;
 
     size_t old_size = end_index - start_index + 1;
