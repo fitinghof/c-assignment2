@@ -115,6 +115,7 @@ void *mem_resize(void *block, size_t size) {
     if(!new_block) {
         set_bit(block_starts_, start_index);
         set_bit(block_ends_, end_index);
+        unlock_allocation();
         return NULL;
     }
     unlock_allocation();
