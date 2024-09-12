@@ -6,10 +6,10 @@ void* start_;
 size_t size_;
 
 atomic_bool allocation_lock_ = false;
-await_and_lock_allocation() {
-    while (!atomic_load(&allocation_lock_) && (&allocation_lock_, true));
+void await_and_lock_allocation() {
+    while (!atomic_load(&allocation_lock_) && atomic_exchange(&allocation_lock_, true));
 }
-unlock_allocation() {
+void unlock_allocation() {
     atomic_store(&allocation_lock_, false);
 }
 
@@ -33,7 +33,7 @@ void clear_bit(atomic_uchar* array, size_t index) {
 /// @param array
 /// @param index
 /// @return
-bool get_bit(const unsigned char* array, size_t index) {
+bool get_bit(atomic_uchar* array, size_t index) {
     return atomic_load(&array[index / 8]) & (1 << (index % 8));
 }
 
