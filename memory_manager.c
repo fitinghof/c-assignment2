@@ -89,6 +89,12 @@ void mem_free(void *block) {
 /// @param block
 /// @param size
 /// @return
+
+
+//***Eftersom vi inte kan garantera att en annan alloc sker samtidigt som vår resize
+//kan vi inte fria minnet innan vi kan garantera vi har någonstans att flytta det
+//fix
+//alocation_lock???
 void *mem_resize(void *block, size_t size) {
     if (block == NULL) return mem_alloc(size);
     size_t start_index = block - start_;
@@ -97,10 +103,16 @@ void *mem_resize(void *block, size_t size) {
     size_t end_index = start_index;
     while(!get_bit(block_ends_, end_index)) end_index++;
 
+    await_and_lock_allocation();
     mem_free(block);
-    if (size == 0) return NULL;
-
+    if (size == 0)
+    {
+        return NULL;
+        unlock_allocation();
+    }
     void* new_block = mem_alloc(size);
+    unlock_allocation();
+
     if(!new_block) {
         set_bit(block_starts_, start_index);
         set_bit(block_ends_, end_index);
