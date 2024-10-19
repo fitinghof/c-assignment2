@@ -46,12 +46,14 @@ void resize_(dynamic_array_head* head, size_t new_size) {
 
 }
 
-void add_last_(dynamic_array_head* head){
+void add_last_(dynamic_array_head* head, memory_block block){
     if(head->current_size == head->total_size)
         resize_(head, head->current_size * 2);
-    
-
+    head->array[head->current_size++] = block;
+    return;
 }
+
+
 
 void DA_init(dynamic_array_head* head, size_t init_size) {
     head->array = calloc(init_size, sizeof(*(head->array)));
