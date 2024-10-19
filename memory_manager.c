@@ -10,6 +10,10 @@ size_t size_;
 /// @param size
 void mem_init(size_t size) {
     memory_ = malloc(size);
+    if(memory_ == NULL) {
+        fprintf(stderr,"Failed to initialize memory\n");
+        exit(1);
+    }
     DA_init(&blocks_, (size / 64) + 1);
     size_ = size;
     pthread_mutex_init(&allocation_lock, NULL);
@@ -19,16 +23,13 @@ void mem_init(size_t size) {
 /// found
 /// @param size
 /// @return
-void *mem_alloc(size_t size) {
+void *mem_alloc__(size_t size) {
     if (size > size_) return NULL;
     if(size == 0) return memory_; // wack
-    memory_block *current_block = DA_get_first(&blocks_);
 
-    pthread_mutex_lock(&allocation_lock);
+    memory_block *current_block = DA_get_first(&blocks_);
     if (current_block == NULL || current_block->start - memory_ >= size) {
         DA_add(&blocks_, (memory_block){memory_, memory_ + size - 1});
-
-        pthread_mutex_unlock(&allocation_lock);
         return memory_;
     }
     memory_block *next_block = DA_get_next(&blocks_, current_block);
@@ -36,8 +37,6 @@ void *mem_alloc(size_t size) {
         if (next_block->start - current_block->end - 1 >= size) {
             void *allocated = current_block->end + 1;
             DA_add(&blocks_, (memory_block){allocated, allocated + size - 1});
-
-            pthread_mutex_unlock(&allocation_lock);
             return allocated;
         }
         current_block = next_block;
@@ -46,12 +45,16 @@ void *mem_alloc(size_t size) {
     if (memory_ + size_ - 1 - current_block->end >= size) {
         void *allocated = current_block->end + 1;
         DA_add(&blocks_, (memory_block){allocated, allocated + size - 1});
-
-        pthread_mutex_unlock(&allocation_lock);
         return allocated;
     }
-    pthread_mutex_unlock(&allocation_lock);
     return NULL;
+}
+
+void* mem_alloc(size_t size){
+    pthread_mutex_lock(&allocation_lock);
+    void* ret_val = mem_alloc__(size);
+    pthread_mutex_unlock(&allocation_lock);
+    return ret_val;
 }
 
 void *mem_alloc_bestfit(size_t size) { return NULL; }
@@ -87,7 +90,7 @@ void *mem_resize(void *block, size_t size) {
     }
     memory_block temp = *current_block;
     mem_free(current_block);
-    void *new_block = mem_alloc(size);
+    void *new_block = mem_alloc__(size);
     if (new_block) {
         size_t copy_size = (size > temp.end - temp.start + 1) ? size : temp.end - temp.start + 1;
         memcpy(new_block, temp.start, copy_size);
