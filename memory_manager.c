@@ -1,49 +1,18 @@
 #include "memory_manager.h"
 
-atomic_uchar* block_starts_;
-atomic_uchar* block_ends_;
-void* start_;
+pthread_mutex_t allocation_lock;
+
+void *memory_;
+dynamic_array_head blocks_;
 size_t size_;
-
-atomic_bool allocation_lock_ = false;
-void await_and_lock_allocation() {
-    while (!atomic_load(&allocation_lock_) && atomic_exchange(&allocation_lock_, true));
-}
-void unlock_allocation() {
-    atomic_store(&allocation_lock_, false);
-}
-
-/// @brief sets a bit to 1
-/// @param array
-/// @param index
-void set_bit(atomic_uchar* array, size_t index) {
-    atomic_store(&array[index / 8],
-                 atomic_load(&array[index / 8]) | (1 << (index % 8)));
-}
-
-/// @brief sets a bit to 0
-/// @param array
-/// @param index
-void clear_bit(atomic_uchar* array, size_t index) {
-    atomic_store(&array[index / 8],
-                 atomic_load(&array[index / 8]) & ~(1 << (index % 8)));
-}
-
-/// @brief returns bit
-/// @param array
-/// @param index
-/// @return
-bool get_bit(atomic_uchar* array, size_t index) {
-    return atomic_load(&array[index / 8]) & (1 << (index % 8));
-}
 
 /// @brief loads up the memory with memory
 /// @param size
 void mem_init(size_t size) {
-    start_ = malloc(size);
-    atomic_init(&block_starts_, calloc((size + 7) / 8, 1));
-    atomic_init(&block_ends_, calloc((size + 7) / 8, 1));
+    memory_ = malloc(size);
+    DA_init(&blocks_, (size / 64) + 1);
     size_ = size;
+    pthread_mutex_init(&allocation_lock, NULL);
 }
 
 /// @brief returns pointer to memory block, NULL if no chunk of proper size
@@ -51,37 +20,46 @@ void mem_init(size_t size) {
 /// @param size
 /// @return
 void *mem_alloc(size_t size) {
-    if (size == 0) return NULL;
-    await_and_lock_allocation();
-    size_t current_empty_blocks = 0;
-    bool empty = true;
-    for (size_t i = 0; i < size_; i++) {
-        if (get_bit(block_starts_, i) == 1) empty = false;
-        current_empty_blocks = (empty) ? current_empty_blocks + 1 : 0;
+    if (size > size_) return NULL;
+    if(size == 0) return memory_; // wack
+    memory_block *current_block = DA_get_first(&blocks_);
 
-        if (current_empty_blocks == size) {
-            set_bit(block_ends_, i);
-            set_bit(block_starts_, i + 1 - size);
-            unlock_allocation();
-            return start_ + (i + 1 - size);
-        }
-        if (get_bit(block_ends_, i) == 1) empty = true;
+    pthread_mutex_lock(&allocation_lock);
+    if (current_block == NULL || current_block->start - memory_ >= size) {
+        DA_add(&blocks_, (memory_block){memory_, memory_ + size - 1});
+
+        pthread_mutex_unlock(&allocation_lock);
+        return memory_;
     }
-    unlock_allocation();
+    memory_block *next_block = DA_get_next(&blocks_, current_block);
+    while (next_block != NULL) {
+        if (next_block->start - current_block->end - 1 >= size) {
+            void *allocated = current_block->end + 1;
+            DA_add(&blocks_, (memory_block){allocated, allocated + size - 1});
+
+            pthread_mutex_unlock(&allocation_lock);
+            return allocated;
+        }
+        current_block = next_block;
+        next_block = DA_get_next(&blocks_, next_block);
+    }
+    if (memory_ + size_ - 1 - current_block->end >= size) {
+        void *allocated = current_block->end + 1;
+        DA_add(&blocks_, (memory_block){allocated, allocated + size - 1});
+
+        pthread_mutex_unlock(&allocation_lock);
+        return allocated;
+    }
+    pthread_mutex_unlock(&allocation_lock);
     return NULL;
 }
+
+void *mem_alloc_bestfit(size_t size) { return NULL; }
 
 /// @brief Frees the memory block preventing memory leaks
 /// @param block
 void mem_free(void *block) {
-    size_t block_index = block - start_;
-    if (block_index >= size_ || get_bit(block_starts_, block_index) == 0 ||
-        block == NULL)
-        return;
-
-    clear_bit(block_starts_, block_index);
-    while (get_bit(block_ends_, block_index) == 0) block_index++;
-    clear_bit(block_ends_, block_index);
+    return DA_remove(&blocks_, DA_find(&blocks_, block));
 }
 
 /// @brief changes the size of the block, if possible without moving it, returns
@@ -89,47 +67,43 @@ void mem_free(void *block) {
 /// @param block
 /// @param size
 /// @return
-
-
-//***Eftersom vi inte kan garantera att en annan alloc sker samtidigt som vår resize
-//kan vi inte fria minnet innan vi kan garantera vi har någonstans att flytta det
-//fix
-//alocation_lock???
 void *mem_resize(void *block, size_t size) {
-    if (block == NULL) return mem_alloc(size);
-    size_t start_index = block - start_;
-    if (start_index >= size_ || !get_bit(block_starts_, start_index)) return NULL;
-
-    size_t end_index = start_index;
-    while(!get_bit(block_ends_, end_index)) end_index++;
-
-    await_and_lock_allocation();
-    mem_free(block);
-    if (size == 0)
-    {
-        return NULL;
-        unlock_allocation();
-    }
-    void* new_block = mem_alloc(size);
-
-    if(!new_block) {
-        set_bit(block_starts_, start_index);
-        set_bit(block_ends_, end_index);
-        unlock_allocation();
+    if (!block) return mem_alloc(size);
+    if (size == 0) {
+        mem_free(block);
         return NULL;
     }
-    unlock_allocation();
-    if(new_block == block) return block;
+    memory_block *current_block = DA_find(&blocks_, block);
+    if (!current_block) return NULL;
 
-    size_t old_size = end_index - start_index + 1;
-    size_t min_size = (size < old_size) ? size : old_size;
-    memcpy(new_block, block, min_size);
-    return new_block;
+    pthread_mutex_lock(&allocation_lock);
+    memory_block *next_block = DA_get_next(&blocks_, current_block);
+    void *next_block_start = (next_block) ? next_block->start : memory_ + size_;
+    if (next_block_start - current_block->start >= size) {
+        current_block->end = current_block->start + size - 1;
+
+        pthread_mutex_unlock(&allocation_lock);
+        return current_block->start;
+    }
+    memory_block temp = *current_block;
+    mem_free(current_block);
+    void *new_block = mem_alloc(size);
+    if (new_block) {
+        size_t copy_size = (size > temp.end - temp.start + 1) ? size : temp.end - temp.start + 1;
+        memcpy(new_block, temp.start, copy_size);
+
+        pthread_mutex_unlock(&allocation_lock);
+        return new_block;
+    }
+    *current_block = temp;
+
+    pthread_mutex_unlock(&allocation_lock);
+    return NULL;
 }
 
 /// @brief gives back the memory used by the memory manager
 void mem_deinit() {
-    free(block_ends_);
-    free(block_starts_);
-    free(start_);
+    free(memory_);
+    DA_deinit(&blocks_);
+    pthread_mutex_destroy(&allocation_lock);
 }
