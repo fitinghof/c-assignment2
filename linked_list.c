@@ -1,3 +1,4 @@
+#define __USE_UNIX98
 #include "linked_list.h"
 
 /// @brief Initializes the list

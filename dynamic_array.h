@@ -1,10 +1,13 @@
 #ifndef DYNAMIC_ARRAY_H
 #define DYNAMIC_ARRAY_H
+#define __USE_UNIX98 1
 
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdatomic.h>
+#include <pthread.h>
 
 typedef struct memory_block {
     void* start;

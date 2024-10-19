@@ -1,6 +1,13 @@
+#define _GNU_SOURCE
 #include "dynamic_array.h"
+#include <pthread.h>
+#include <pthread.h>
+
+
+pthread_rwlock_t rwlock;
 
 void pack_memory(dynamic_array_head* head) {
+
     size_t current_index = 0;
     for (size_t i = 0; i < head->total_size; i++) {
         if (head->array[i].start && i != current_index) {
@@ -21,7 +28,9 @@ bool resize(dynamic_array_head* head, size_t new_size) {
     else {
         if (head->current_size < new_size) return false;
         pack_memory(head);
-        head->array = realloc(head->array, sizeof(memory_block));
+        void *temp = realloc(head->array, new_size * sizeof(memory_block));
+        if(!temp) return false;
+        head->array = temp;
     }
     head->total_size = new_size;
     return true;
@@ -34,6 +43,7 @@ void DA_init(dynamic_array_head* head, size_t init_size) {
     for (size_t i = 0; i < head->total_size; i++) {
         head->array[i] = (memory_block){NULL, NULL};
     }
+    pthread_rwlock_init(&rwlock, NULL);
 }
 
 void shove_left_(dynamic_array_head* head, size_t index) {
@@ -57,11 +67,14 @@ void shove_right_(dynamic_array_head* head, size_t index) {
 }
 
 void DA_add(dynamic_array_head* head, memory_block block) {
+    pthread_rwlock_wrlock(&rwlock);
     if (head->current_size == head->total_size) {
         resize(head, head->total_size * 2);
     }
     if (head->current_size == 0) {
         head->array[(head->current_size)++] = block;
+
+        pthread_rwlock_unlock(&rwlock);
         return;
     }
     bool has_empty_before = false;
@@ -75,48 +88,70 @@ void DA_add(dynamic_array_head* head, memory_block block) {
                 shove_left_(head, i - 1);
                 head->array[i - 1] = block;
 
+                pthread_rwlock_unlock(&rwlock);
                 return;
             } else {
                 shove_right_(head, i);
                 head->array[i] = block;
+
+                pthread_rwlock_unlock(&rwlock);
                 return;
             }
         }
         blocks_left--;
     }
+    pthread_rwlock_unlock(&rwlock);
 }
 
 void DA_remove(dynamic_array_head* head, memory_block* block) {
     if(!block) return;
+    pthread_rwlock_wrlock(&rwlock);
     head->current_size--;
     block->start = NULL;
     block->end = NULL;
+    pthread_rwlock_unlock(&rwlock);
 }
 
 memory_block* DA_find(dynamic_array_head* head, void* start) {
+    pthread_rwlock_rdlock(&rwlock);
+
     for (size_t i = 0; i < head->total_size; i++) {
-        if (head->array[i].start == start) return &(head->array[i]);
+        if (head->array[i].start == start)
+        {
+            pthread_rwlock_unlock(&rwlock);
+            return &(head->array[i]);
+        }
     }
+    pthread_rwlock_unlock(&rwlock);
     return NULL;
+
 }
 
 memory_block* DA_get_next(dynamic_array_head* head, memory_block* block) {
+    pthread_rwlock_rdlock(&rwlock);
     block++;
     while (block < (head->array + head->total_size)) {
-        if (block->start != NULL) return block;
+        if (block->start != NULL) {
+            pthread_rwlock_unlock(&rwlock);
+            return block;
+        }
         block++;
     }
+    pthread_rwlock_unlock(&rwlock);
     return NULL;
 }
 
 memory_block *DA_get_first(dynamic_array_head *head){
     if(head->current_size == 0) return NULL;
+    pthread_rwlock_rdlock(&rwlock);
     memory_block *block = &head->array[0];
     while(block->start == NULL) block++;
+    pthread_rwlock_unlock(&rwlock);
     return block;
 }
 
 
 void DA_deinit(dynamic_array_head *head){
     free(head->array);
+    pthread_rwlock_destroy(&rwlock);
 }
