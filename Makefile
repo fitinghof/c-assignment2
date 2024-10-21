@@ -1,7 +1,8 @@
 # Compiler and Linking Variables
 CC = gcc
-CFLAGS = -Wall -fPIC -g -pthread -lm
+CFLAGS = -Wall -fPIC -g -pthread
 LIB_NAME = libmemory_manager.so
+LDFLAGS = -lm -g
 
 # Source and Object Files
 SRC = memory_manager.c
@@ -17,7 +18,7 @@ endif
 
 # Rule to create the dynamic library
 $(LIB_NAME): $(OBJ)
-	$(CC) $(CFLAGS) -shared -lm -o $@ $(OBJ) $(LDFLAGS)
+	$(CC) $(CFLAGS) -shared -o $@ $(OBJ) $(LDFLAGS)
 
 # Rule to compile source files into object files
 %.o: %.c
@@ -31,11 +32,11 @@ list: linked_list.o
 
 # Test target to run the memory manager test program
 test_mmanager: $(LIB_NAME)
-	$(CC) $(CFLAGS) -o test_memory_manager test_memory_manager.c -L. -lmemory_manager -g
+	$(CC) $(CFLAGS) -o test_memory_manager test_memory_manager.c -L. -lmemory_manager $(LDFLAGS)
 
 # Test target to run the linked list test program
 test_list: $(LIB_NAME) linked_list.o
-	$(CC) $(CFLAGS) -o test_linked_list linked_list.c test_linked_list.c -L. -lmemory_manager -g
+	$(CC) $(CFLAGS) -o test_linked_list linked_list.c test_linked_list.c -L. -lmemory_manager $(LDFLAGS)
 
 #run tests
 run_tests: run_test_mmanager run_test_list
