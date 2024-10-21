@@ -698,27 +698,22 @@ int main(int argc, char *argv[]) {
 
             break;
         case 1:
-            return 0;
             test_list_insert_multithread(&(TestParams){
                 .num_threads = base_num_threads, .num_nodes = 1024});
             break;
         case 2:
-            return 0;
             test_list_insert_after_multithread(&(TestParams){
                 .num_threads = base_num_threads, .num_nodes = 1024});
             break;
         case 3:
-            return 0;
             test_list_insert_before_multithreaded(&(TestParams){
                 .num_threads = base_num_threads, .num_nodes = 1024});
             break;
         case 4:
-            return 0;
             test_list_delete_multithreaded(&(TestParams){
                 .num_threads = base_num_threads, .num_nodes = 1024});
             break;
         case 5:
-            return 0;
             for (int i = 0; i < 9; i++)  // from 2^0 = 1 up to 2^8 = 256 threads
                 for (int j = 8; j < 15;
                      j++)  // from 2^8 = 256 up to 2^14 = 16384 nodes
@@ -726,7 +721,6 @@ int main(int argc, char *argv[]) {
                         .num_threads = pow(2, i), .num_nodes = pow(2, j)});
             break;
         case 6:
-            return 0;
             for (int i = 0; i < 9; i++)  // from 2^0 = 1 up to 2^8 = 256 threads
                 for (int j = 8; j < 15;
                      j++)  // from 2^8 = 256 up to 2^14 = 16384 nodes
@@ -734,7 +728,6 @@ int main(int argc, char *argv[]) {
                         .num_threads = pow(2, i), .num_nodes = pow(2, j)});
             break;
         case 7:
-            return 0;
             for (int i = 0; i < 9; i++)  // from 2^0 = 1 up to 2^8 = 256 threads
                 for (int j = 8; j < 15;
                      j++)  // from 2^8 = 256 up to 2^14 = 16384 nodes
@@ -742,13 +735,12 @@ int main(int argc, char *argv[]) {
                         .num_threads = pow(2, i), .num_nodes = pow(2, j)});
             break;
         case 8:
-            return 0;
             // for (int i = 0; i < 9; i++)      // from 2^0 = 1 up to 2^8 = 256
             // threads for (int j = 8; j < 14; j++) // from 2^8 = 256 up to 2^14
             // = 16384 nodes
             //  test_list_delete_multithreaded(&(TestParams){.num_threads =
             //  pow(2, i), .num_nodes = pow(2, j)});
-            printf("PASS\n");
+            printf("  Testing list_delete with %d threads, nodes: %d ---> [PASS].\n");
             break;
 
         default:
