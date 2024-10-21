@@ -214,6 +214,7 @@ void test_list_insert_before_multithreaded(TestParams *params)
     }
 
     // Optional: Verify the list structure, node count, etc.
+    printf("YOYOYO, %d, %d\n", list_count_nodes(&head), expected_count);
     my_assert(list_count_nodes(&head) == expected_count);
     list_cleanup(&head);
 
