@@ -17,7 +17,7 @@ endif
 
 # Rule to create the dynamic library
 $(LIB_NAME): $(OBJ)
-	$(CC) -shared -o $@ $(OBJ) $(LDFLAGS)
+	$(CC) -shared -lm -o $@ $(OBJ) $(LDFLAGS)
 
 # Rule to compile source files into object files
 %.o: %.c
