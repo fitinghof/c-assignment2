@@ -3,7 +3,7 @@
 
 typedef struct memory_block {
     void *start;
-    void *end
+    void *end;
 } memory_block;
 
 typedef struct dynamic_array_head {
