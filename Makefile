@@ -1,18 +1,23 @@
 # Compiler and Linking Variables
 CC = gcc
-CFLAGS = -Wall -fPIC -g -fsanitize=thread
+CFLAGS = -Wall -fPIC -g
 LIB_NAME = libmemory_manager.so
 
 # Source and Object Files
-SRC = memory_manager.c dynamic_array.c
+SRC = memory_manager.c
 OBJ = $(SRC:.c=.o)
 
 # Default target
 all: mmanager list test_mmanager test_list
 
+ifeq ($(USE_TSAN), 1)
+    CFLAGS += -fsanitize=thread
+    LDFLAGS += -fsanitize=thread
+endif
+
 # Rule to create the dynamic library
 $(LIB_NAME): $(OBJ)
-	$(CC) -shared -o $@ $(OBJ)
+	$(CC) -shared -o $@ $(OBJ) $(LDFLAGS)
 
 # Rule to compile source files into object files
 %.o: %.c
@@ -26,18 +31,18 @@ list: linked_list.o
 
 # Test target to run the memory manager test program
 test_mmanager: $(LIB_NAME)
-	$(CC) -o test_memory_manager test_memory_manager.c -L. -lmemory_manager -lm -g -fsanitize=thread
+	$(CC) $(CFLAGS) -o test_memory_manager test_memory_manager.c -L. -lmemory_manager -lm -g
 
 # Test target to run the linked list test program
 test_list: $(LIB_NAME) linked_list.o
-	$(CC) -o test_linked_list linked_list.c test_linked_list.c -L. -lmemory_manager -g -fsanitize=thread
+	$(CC) $(CFLAGS) -o test_linked_list linked_list.c test_linked_list.c -L. -lmemory_manager -g
 
 #run tests
 run_tests: run_test_mmanager run_test_list
 
 # run test cases for the memory manager
 run_test_mmanager:
-	export LD_LIBRARY_PATH=. && TSAN_OPTIONS=" verbosity=1 history_size=7" && ./test_memory_manager 2
+	export LD_LIBRARY_PATH=. && TSAN_OPTIONS=" verbosity=2 history_size=7" && ./test_memory_manager 2
 
 # run test cases for the linked list
 run_test_list:
