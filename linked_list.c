@@ -184,12 +184,6 @@ int list_count_nodes(Node** head) {
 /// @brief frees all used memory
 /// @param head list head
 void list_cleanup(Node** head) {
-    Node* walker = *head;
-    while (walker != NULL) {
-        Node* temp = walker;
-        walker = walker->next;
-        mem_free(temp);
-    }
     *head = NULL;
     mem_deinit();
     pthread_rwlock_destroy(&lock);
