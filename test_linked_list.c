@@ -177,17 +177,20 @@ void *thread_insert_before(void *arg)
 void test_list_insert_before_multithreaded(TestParams *params)
 {
     printf_yellow("  Testing list_insert_before with %d threads, each inserting %d nodes ---> ", params->num_threads, params->num_nodes);
+    int expected_count = 0; // Initial nodes + inserted nodes + head
     Node *head = NULL;
-    list_init(&head, sizeof(Node) * (params->num_threads + params->num_nodes)); // Allocate enough space
+    list_init(&head, sizeof(Node) * (params->num_threads + params->num_nodes + 1)); // Allocate enough space
 
     Node **nodes = malloc(sizeof(Node *) * (params->num_threads + 1)); // Array of pointers to Node
-    list_insert(&head, 0);                                             // Insert the initial head node
+    list_insert(&head, 0);
+    expected_count++;                                          // Insert the initial head node
     nodes[0] = head;                                                   // Save head node pointer
 
     // Insert additional nodes to serve as insertion targets
     for (int i = 1; i <= params->num_threads; i++)
     {
         list_insert(&head, i * 10);    // Sequentially increasing data
+        expected_count++;
         nodes[i] = nodes[i - 1]->next; // Save pointer to the newly added node
     }
 
@@ -200,6 +203,7 @@ void test_list_insert_before_multithreaded(TestParams *params)
         thread_data[i].head = &head;
         thread_data[i].prev_node = nodes[i];                                // Each thread starts at a different initial node
         thread_data[i].num_nodes = params->num_nodes / params->num_threads; // Distribute nodes evenly
+        expected_count += params->num_nodes / params->num_threads;
         pthread_create(&threads[i], NULL, thread_insert_before, &thread_data[i]);
     }
 
@@ -210,7 +214,6 @@ void test_list_insert_before_multithreaded(TestParams *params)
     }
 
     // Optional: Verify the list structure, node count, etc.
-    int expected_count = params->num_threads + params->num_nodes + 1; // Initial nodes + inserted nodes + head
     my_assert(list_count_nodes(&head) == expected_count);
     list_cleanup(&head);
 
