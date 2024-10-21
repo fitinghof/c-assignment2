@@ -6,9 +6,6 @@
 #include <string.h>
 #include <pthread.h>
 
-#include "dynamic_array.h"
-
-
 void mem_init(size_t size);
 
 void* mem_alloc(size_t size);
