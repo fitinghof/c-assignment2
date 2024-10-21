@@ -1,9 +1,6 @@
 #define _GNU_SOURCE
 #include "memory_manager.h"
 
-#include <pthread.h>
-#include <string.h>
-
 typedef struct memory_block {
     void *start;
     void *end
