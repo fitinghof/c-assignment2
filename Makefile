@@ -1,6 +1,6 @@
 # Compiler and Linking Variables
 CC = gcc
-CFLAGS = -Wall -fPIC -g -pthread
+CFLAGS = -Wall -fPIC -g -pthread -lm
 LIB_NAME = libmemory_manager.so
 
 # Source and Object Files
@@ -17,7 +17,7 @@ endif
 
 # Rule to create the dynamic library
 $(LIB_NAME): $(OBJ)
-	$(CC) -shared -lm -o $@ $(OBJ) $(LDFLAGS)
+	$(CC) $(CFLAGS) -shared -lm -o $@ $(OBJ) $(LDFLAGS)
 
 # Rule to compile source files into object files
 %.o: %.c
