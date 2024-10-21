@@ -734,7 +734,7 @@ int main(int argc, char *argv[])
         break;
 
     default:
-        printf("Invalid test function\n");
+        printf("Invalid test function yoyoyo\n");
         break;
     }
 
