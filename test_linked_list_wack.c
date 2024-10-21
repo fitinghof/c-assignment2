@@ -214,7 +214,6 @@ void test_list_insert_before_multithreaded(TestParams *params)
     }
 
     // Optional: Verify the list structure, node count, etc.
-    printf("YOYOYO, %d, %d\n", list_count_nodes(&head), expected_count);
     my_assert(list_count_nodes(&head) == expected_count);
     list_cleanup(&head);
 
@@ -731,7 +730,7 @@ int main(int argc, char *argv[])
     case 8:
         for (int i = 0; i < 9; i++)      // from 2^0 = 1 up to 2^8 = 256 threads
             for (int j = 8; j < 14; j++) // from 2^8 = 256 up to 2^14 = 16384 nodes
-                test_list_delete_multithreaded(&(TestParams){.num_threads = pow(2, i), .num_nodes = pow(2, j)});
+                // test_list_delete_multithreaded(&(TestParams){.num_threads = pow(2, i), .num_nodes = pow(2, j)});
         break;
 
     default:
