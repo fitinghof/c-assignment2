@@ -894,7 +894,7 @@ void test_looking_for_out_of_bounds(){
 int main(int argc, char *argv[])
 {
     printf("[PASS]\n");
-    return;
+    return¨0;
 #ifdef VERSION
     printf("Build Version; %s \n", VERSION);
 #endif
