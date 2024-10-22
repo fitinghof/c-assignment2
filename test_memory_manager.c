@@ -12,13 +12,13 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include "common_defs.h"
-#include <stdint.h>
 
 #include <unistd.h>
 
 #define debug 0
 
 #include "gitdata.h"
+#include <cstdint>
 
 my_barrier_t barrier; // Declare our custom barrier
 
@@ -56,7 +56,6 @@ size_t *calculate_thread_allocations(int num_threads, size_t total_memory)
     if (allocations == NULL)
     {
         fprintf(stderr, "Memory allocation failed.\n");
-        free(allocations);
         return NULL;
     }
 
@@ -82,7 +81,6 @@ size_t *calculate_thread_allocations(int num_threads, size_t total_memory)
         allocations[num_threads - i - 1] += fraction;
     }
 
-    free(allocations);
     return allocations;
 }
 /*
@@ -923,9 +921,7 @@ int main(int argc, char *argv[])
     case 0:
         // Running all tests with a base number of threads
         printf("\n*** Testing various functions with a base number of threads: ***\n");
-        // fuction call below doesn't take into account the number of threads to be tested for, therefor only tests with 4 threads are possible.
         run_concurrent_test(test_alloc_and_free, (TestParams){.num_threads = base_num_threads, .memory_size = 1024}, "mem_alloc and mem_free");
-        // run_concurrent_test(test_alloc_and_free, (TestParams){.num_threads = base_num_threads, .memory_size = 128 * base_num_threads}, "mem_alloc and mem_free");
         run_concurrent_test(test_zero_alloc_and_free, (TestParams){.num_threads = base_num_threads, .memory_size = 1024}, "zero alloc and free");
 
         test_resize_multithread((TestParams){.num_threads = base_num_threads});
