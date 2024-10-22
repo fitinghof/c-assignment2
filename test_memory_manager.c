@@ -12,13 +12,12 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include "common_defs.h"
-
 #include <unistd.h>
+#include "gitdata.h"
+#include <stdint.h>
 
 #define debug 0
 
-#include "gitdata.h"
-#include <cstdint>
 
 my_barrier_t barrier; // Declare our custom barrier
 
