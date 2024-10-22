@@ -2,8 +2,13 @@
 
 pthread_mutex_t allocation_lock;
 
+typedef struct {
+    void *start;
+    void *end;
+} memory_block;
+
+memory_block *blocks_;
 void *memory_;
-dynamic_array_head blocks_;
 size_t size_;
 
 /// @brief loads up the memory with memory
