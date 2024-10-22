@@ -4,208 +4,191 @@
 typedef struct memory_block {
     void *start;
     void *end;
+    struct memory_block *next;
 } memory_block;
 
-typedef struct dynamic_array_head {
-    memory_block* array;
-    size_t total_size;
-    size_t current_size;
-} dynamic_array_head;
+pthread_mutex_t allocation_lock;
 
-pthread_rwlock_t rwlock;
-void* memory_;
+memory_block *head;
+void *memory_;
 size_t size_;
 
-dynamic_array_head head;
-
-bool resize(size_t new_size) {
-    if (head.total_size < new_size) {
-        void* temp = realloc(head.array, new_size * sizeof(memory_block));
-        if (!temp) return false;
-        head.array = temp;
-        head.total_size = new_size;
-    } else {
-        if (head.current_size < new_size) return false;
-        void* temp = realloc(head.array, new_size * sizeof(memory_block));
-        if (!temp) return false;
-        head.array = temp;
-        head.total_size = new_size;
-    }
-    head.total_size = new_size;
-    return true;
+/// @brief loads up the memory with memory
+/// @param size
+void mem_init(size_t size) {
+    head = NULL;
+    memory_ = malloc(size);
+    size_ = size;
+    pthread_mutex_init(&allocation_lock, NULL);
 }
 
-void shove_left_(size_t index) {
-    while ((index + 1) < head.total_size) {
-        head.array[index] = head.array[index + 1];
-        index++;
-    }
-}
-
-void shove_right_(size_t index) {
-    size_t walker = head.total_size - 1;
-    while (walker != index) {
-        head.array[walker] = head.array[walker - 1];
-        walker--;
-    }
-}
-
-void mem_init(size_t memory_size) {
-    size_t array_size = memory_size / 64;
-    head.array = malloc(array_size * sizeof(memory_block));
-    head.current_size = 0;
-    head.total_size = array_size;
-    for (size_t i = 0; i < head.total_size; i++) {
-        head.array[i] = (memory_block){NULL, NULL};
-    }
-    memory_ = malloc(memory_size);
-    size_ = memory_size;
-    pthread_rwlock_init(&rwlock, NULL);
-}
-
-void* mem_alloc(size_t size) {
+/// @brief returns pointer to memory block, NULL if no chunk of proper size
+/// found
+/// @param size
+/// @return
+void *mem_alloc(size_t size) {
     if (size > size_) return NULL;
     if (size == 0) return memory_;
-    pthread_rwlock_wrlock(&rwlock);
-    if (head.current_size == head.total_size) {
-        resize(head.total_size * 2);
-    }
-    if (head.current_size == 0) {
-        head.array[head.current_size++] =
-            (memory_block){memory_, memory_ + size};
+    pthread_mutex_lock(&allocation_lock);
 
-        pthread_rwlock_unlock(&rwlock);
+    // insertion first
+    if (head == NULL || head->start - memory_ >= size) {
+        memory_block *new_block = malloc(sizeof(*new_block));
+        new_block->start = memory_;
+        new_block->end = memory_ + size;
+        new_block->next = head;
+        head = new_block;
+        pthread_mutex_unlock(&allocation_lock);
         return memory_;
     }
-    void* previous_end = memory_;
-    for (size_t i = 0; i < head.current_size; i++) {
-        if (head.array[i].start == NULL || head.array[i].end == NULL)
-            if ((head.array[i].start - previous_end) >= size) {
-                head.current_size++;
-                shove_right_(i);
-                head.array[i] =
-                    (memory_block){previous_end, previous_end + size};
 
-                pthread_rwlock_unlock(&rwlock);
-                return previous_end;
-            }
-        previous_end = head.array[i].end;
-    }
-    if ((memory_ + size_ - previous_end) >= size) {
-        head.array[head.current_size++] =
-            (memory_block){previous_end, previous_end + size};
-        pthread_rwlock_unlock(&rwlock);
-        return previous_end;
-    }
-    pthread_rwlock_unlock(&rwlock);
-    return NULL;
-}
-
-void* DA_add_mem_block__nolock__(size_t size) {
-    if (size > size_) return NULL;
-    if (size == 0) return memory_;
-    if (head.current_size == head.total_size) {
-        resize(head.total_size * 2);
-    }
-    if (head.current_size == 0) {
-        head.array[head.current_size++] =
-            (memory_block){memory_, memory_ + size};
-        return memory_;
-    }
-    void* previous_end = memory_;
-    for (size_t i = 0; i < head.current_size; i++) {
-        if (head.array[i].start == NULL || head.array[i].end == NULL)
-            if ((head.array[i].start - previous_end) >= size) {
-                head.current_size++;
-                shove_right_(i);
-                head.array[i] =
-                    (memory_block){previous_end, previous_end + size};
-                return previous_end;
-            }
-        previous_end = head.array[i].end;
-    }
-    if ((memory_ + size_ - previous_end) >= size) {
-        head.array[head.current_size++] =
-            (memory_block){previous_end, previous_end + size};
-        return previous_end;
-    }
-    return NULL;
-}
-
-void* mem_resize(void* block, size_t size) {
-    if (size > size_) return NULL;
-    if (size == 0) {
-        mem_free(block);
-        return NULL;
-    }
-    pthread_rwlock_wrlock(&rwlock);
-    for (size_t i = 0; i < head.current_size;
-         i++) {  // make binary search u dumb fuck
-        if (head.array[i].start == block) {
-            size_t available_space_after =
-                (i == head.current_size - 1)
-                    ? memory_ + size - head.array[i].start
-                    : head.array[i + 1].start - head.array[i].start;
-            if (available_space_after >= size) {
-                head.array[i].end = head.array[i].start + size;
-                void *retVal = head.array[i].start;
-                pthread_rwlock_unlock(&rwlock);
-                return retVal;
-            }
-            size_t old_block_size = head.array[i].end - head.array[i].start;
-            size_t copy_size = (old_block_size > size) ? size : old_block_size;
-            size_t space_before =
-                (i == 0) ? head.array[i].start - memory_
-                         : head.array[i].start - head.array[i - 1].end;
-            void* previous_end = (i == 0) ? memory_ : head.array[i - 1].end;
-            if (space_before + available_space_after >= size) {
-                memmove(previous_end, head.array[i].start, copy_size);
-                head.array[i].start = previous_end;
-                head.array[i].end = head.array[i].start + size;
-                void *retVal = head.array[i].start;
-                pthread_rwlock_unlock(&rwlock);
-                return retVal;
-            }
-            void* new_block = DA_add_mem_block__nolock__(size);
-            size_t index = (head.array[i].start == block)       ? i
-                           : (head.array[i + 1].start == block) ? i + 1
-                                                                : i - 1;
-            if (new_block) {
-                memcpy(new_block, head.array[index].start, copy_size);
-                // remove garbage block
-                shove_left_(i);
-                pthread_rwlock_unlock(&rwlock);
-                return new_block;
-            }
-            pthread_rwlock_unlock(&rwlock);
-            return NULL;
-            // else, remove and add again, probably duper inefficient
+    // Insertion between blocks
+    memory_block *walker = head;
+    while (walker->next != NULL) {
+        size_t available_space = walker->next->start - walker->end;
+        if (available_space >= size) {
+            memory_block *new_block = malloc(sizeof(*new_block));
+            new_block->start = walker->end;
+            new_block->end = walker->end + size;
+            new_block->next = walker->next;
+            walker->next = new_block;
+            void *ret_val = walker->end;
+            pthread_mutex_unlock(&allocation_lock);
+            return ret_val;
         }
     }
-    pthread_rwlock_unlock(&rwlock);
+
+    // Insertion last
+    size_t available_space = memory_ + size_ - walker->end;
+    if (available_space >= size) {
+        memory_block *new_block = malloc(sizeof(*new_block));
+        new_block->start = walker->end;
+        new_block->end = walker->end + size;
+        new_block->next = NULL;
+        walker->next = new_block;
+        void *ret_val = walker->end;
+        pthread_mutex_unlock(&allocation_lock);
+        return ret_val;
+    }
+    return NULL;
+}
+void *mem_alloc__nolock__(size_t size) {
+    if (size > size_) return NULL;
+    if (size == 0) return memory_;
+
+    // insertion first
+    if (head == NULL || head->start - memory_ >= size) {
+        memory_block *new_block = malloc(sizeof(*new_block));
+        new_block->start = memory_;
+        new_block->end = memory_ + size;
+        new_block->next = head;
+        head = new_block;
+        return memory_;
+    }
+
+    // Insertion between blocks
+    memory_block *walker = head;
+    while (walker->next != NULL) {
+        size_t available_space = walker->next->start - walker->end;
+        if (available_space >= size) {
+            memory_block *new_block = malloc(sizeof(*new_block));
+            new_block->start = walker->end;
+            new_block->end = walker->end + size;
+            new_block->next = walker->next;
+            walker->next = new_block;
+            void *ret_val = walker->end;
+            return ret_val;
+        }
+    }
+
+    // Insertion last
+    size_t available_space = memory_ + size_ - walker->end;
+    if (available_space >= size) {
+        memory_block *new_block = malloc(sizeof(*new_block));
+        new_block->start = walker->end;
+        new_block->end = walker->end + size;
+        new_block->next = NULL;
+        walker->next = new_block;
+        void *ret_val = walker->end;
+        return ret_val;
+    }
     return NULL;
 }
 
-void mem_free(void* start) {
-    pthread_rwlock_wrlock(&rwlock);
-    for (size_t i = 0; i < head.total_size; i++) {
-        if (head.array[i].start == start) {
-            shove_left_(i);
-            head.current_size--;
-            pthread_rwlock_unlock(&rwlock);
+/// @brief Frees the memory block preventing memory leaks
+/// @param block
+void mem_free(void *block) {
+    pthread_mutex_lock(&allocation_lock);
+    if (head->start == block) {
+        memory_block *temp = head;
+        head = head->next;
+        free(temp);
+        pthread_mutex_unlock(&allocation_lock);
+        return;
+    }
+    memory_block *walker = head;
+    while (walker->next != NULL) {
+        if (walker->next->start == block) {
+            memory_block *temp = walker->next;
+            walker->next = temp->next;
+            free(temp);
+            pthread_mutex_unlock(&allocation_lock);
             return;
         }
     }
-    pthread_rwlock_unlock(&rwlock);
+}
+/// @brief changes the size of the block, if possible without moving it, returns
+/// NULL if failed
+/// @param block
+/// @param size
+/// @return
+void *mem_resize(void *block, size_t size) {
+    if (size > size_) return NULL;
+    if (!block) return mem_alloc(size);
+    pthread_mutex_lock(&allocation_lock);
+
+    // Save some data about the deleted node incase we need to replace it
+    memory_block *before_node = head;
+    if(head->start == block) before_node = NULL;
+    else while(before_node->next != NULL && before_node->next->start != block) before_node = before_node->next;
+
+    // Node doesn't exist
+    if( before_node->next == NULL) {
+        pthread_mutex_unlock(&allocation_lock);
+        return NULL;
+    }
+    memory_block delete_copy = (before_node) ? *(before_node->next) : *head;
+    before_node->next = before_node->next->next;
+    free(before_node->next);
+
+    if (size == 0){
+        pthread_mutex_unlock(&allocation_lock);
+        return NULL;
+    }
+    void *newblock = mem_alloc__nolock__(size);
+    // if no space for resize replace deleted block
+    if(!newblock){
+        memory_block *new_old_block = malloc(sizeof(*new_old_block));
+        *new_old_block = delete_copy;
+        before_node->next = new_old_block;
+        pthread_mutex_unlock(&allocation_lock);
+        return NULL;
+    }
+    pthread_mutex_unlock(&allocation_lock);
+    return newblock;
+
 }
 
+/// @brief gives back the memory used by the memory manager
 void mem_deinit() {
-    free(head.array);
+    memory_block *walker = head;
+    while(walker != NULL){
+        memory_block *temp = walker;
+        walker = walker->next;
+        free(temp);
+    }
     free(memory_);
-    memory_ = NULL;
     size_ = 0;
-    head.array = NULL;
-    head.current_size = 0;
-    head.total_size = 0;
-    pthread_rwlock_destroy(&rwlock);
+    head = NULL;
+    pthread_mutex_destroy(&allocation_lock);
 }
