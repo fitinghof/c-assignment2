@@ -45,7 +45,6 @@ void *mem_alloc(size_t size) {
     // Insertion between blocks
     memory_block *walker = head;
     while (walker->next != NULL) {
-
         size_t available_space = walker->next->start - walker->end;
         if (available_space >= size) {
             memory_block *new_block = malloc(sizeof(*new_block));
@@ -72,6 +71,7 @@ void *mem_alloc(size_t size) {
         pthread_mutex_unlock(&allocation_lock);
         return ret_val;
     }
+    pthread_mutex_unlock(&allocation_lock);
     return NULL;
 }
 void *mem_alloc__nolock__(size_t size) {
@@ -101,6 +101,7 @@ void *mem_alloc__nolock__(size_t size) {
             void *ret_val = walker->end;
             return ret_val;
         }
+        walker = walker->next;
     }
 
     // Insertion last
@@ -121,6 +122,10 @@ void *mem_alloc__nolock__(size_t size) {
 /// @param block
 void mem_free(void *block) {
     pthread_mutex_lock(&allocation_lock);
+    if(!head){
+        pthread_mutex_unlock(&allocation_lock);
+        return;
+    }
     if (head->start == block) {
         memory_block *temp = head;
         head = head->next;
@@ -150,21 +155,34 @@ void mem_free(void *block) {
 void *mem_resize(void *block, size_t size) {
     if (size > size_) return NULL;
     if (!block) return mem_alloc(size);
+    if(!head) return NULL;
     pthread_mutex_lock(&allocation_lock);
 
     // Save some data about the deleted node incase we need to replace it
     memory_block *before_node = head;
     if(head->start == block) before_node = NULL;
-    else while(before_node->next != NULL && before_node->next->start != block) before_node = before_node->next;
+    else{
+        while(before_node->next != NULL && before_node->next->start != block) before_node = before_node->next;
+        if( before_node->next == NULL) {
+            pthread_mutex_unlock(&allocation_lock);
+            return NULL;
+        }
+
+    }
 
     // Node doesn't exist
-    if( before_node->next == NULL) {
-        pthread_mutex_unlock(&allocation_lock);
-        return NULL;
+    memory_block delete_copy;
+    memory_block *delete_ptr;
+    if(before_node){
+        delete_copy = *(before_node->next);
+        delete_ptr = before_node->next;
+        before_node->next = before_node->next->next;
+    } else {
+        delete_copy = *(head);
+        delete_ptr = head;
+        head = head->next;
     }
-    memory_block delete_copy = (before_node) ? *(before_node->next) : *head;
-    before_node->next = before_node->next->next;
-    free(before_node->next);
+    free(delete_ptr);
 
     if (size == 0){
         pthread_mutex_unlock(&allocation_lock);
