@@ -478,6 +478,7 @@ void test_exceed_cumulative_allocation_multithread(TestParams params)
         if (pthread_create(&threads[i], NULL, cumulative_alloc, &thread_data[i]))
         {
             perror("Failed to create thread");
+            free(sizes);
             exit(EXIT_FAILURE);
         }
     }
@@ -504,6 +505,7 @@ void test_exceed_cumulative_allocation_multithread(TestParams params)
     {
         printf_red("[FAIL]: All allocations succeeded, but should not have.\n");
     }
+    free(sizes);
 }
 
 /*
