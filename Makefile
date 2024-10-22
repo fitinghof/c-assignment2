@@ -4,7 +4,7 @@ CFLAGS = -Wall -fPIC -g -fsanitize=thread
 LIB_NAME = libmemory_manager.so
 
 # Source and Object Files
-SRC = memory_manager.c dynamic_array.c
+SRC = memory_manager.c
 OBJ = $(SRC:.c=.o)
 
 # Default target
