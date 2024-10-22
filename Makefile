@@ -31,12 +31,15 @@ mmanager: $(LIB_NAME)
 list: linked_list.o
 
 # Test target to run the memory manager test program
-test_mmanager: $(LIB_NAME)
-	$(CC) $(CFLAGS) -o test_memory_manager test_memory_manager_wack.c -L. -lmemory_manager $(LDFLAGS)
+#$(LIB_NAME)
+test_mmanager:
+	$(CC) $(CFLAGS) -o test_memory_manager test_memory_manager_wack.c -L. $(LDFLAGS)
 
 # Test target to run the linked list test program
-test_list: $(LIB_NAME) linked_list.o
-	$(CC) $(CFLAGS) -o test_linked_list linked_list.c test_linked_list_wack.c -L. -lmemory_manager $(LDFLAGS)
+#$(LIB_NAME) linked_list.o
+#linked_list.c
+test_list:
+	$(CC) $(CFLAGS) -o test_linked_list test_linked_list_wack.c -L. $(LDFLAGS)
 	cp test_linked_list test_linked_listCG
 #run tests
 run_tests: run_test_mmanager run_test_list
