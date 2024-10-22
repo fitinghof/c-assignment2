@@ -682,9 +682,8 @@ int main(int argc, char *argv[]) {
             printf(
                 "\nStress testing basic operations with various numbers of "
                 "threads and nodes:\n");
-            for (int i = 0; i < 8; i++)  // from 2^0 = 1 up to 2^8 = 256 threads
-                for (int j = 8; j < 12;
-                     j++)  // from 2^8 = 256 up to 2^14 = 16384 nodes
+            for (int i = 0; i < 9; i++)  // from 2^0 = 1 up to 2^8 = 256 threads
+                for (int j = 8; j < 15; j++)  // from 2^8 = 256 up to 2^14 = 16384 nodes
                 {
                     test_list_insert_multithread(&(TestParams){
                         .num_threads = pow(2, i), .num_nodes = pow(2, j)});
@@ -735,12 +734,10 @@ int main(int argc, char *argv[]) {
                         .num_threads = pow(2, i), .num_nodes = pow(2, j)});
             break;
         case 8:
-            // for (int i = 0; i < 9; i++)      // from 2^0 = 1 up to 2^8 = 256
-            // threads for (int j = 8; j < 14; j++) // from 2^8 = 256 up to 2^14
-            // = 16384 nodes
-            //  test_list_delete_multithreaded(&(TestParams){.num_threads =
-            //  pow(2, i), .num_nodes = pow(2, j)});
-            printf("  Testing list_delete with %d threads, nodes: %d ---> [PASS].\n");
+            for (int i = 0; i < 9; i++)      // from 2^0 = 1 up to 2^8 = 256 threads
+                for (int j = 8; j < 15; j++) // from 2^8 = 256 up to 2^14 = 16384 nodes
+                    test_list_delete_multithreaded(&(TestParams){.num_threads = pow(2, i), .num_nodes = pow(2, j)});
+            // printf("  Testing list_delete with %d threads, nodes: %d ---> [PASS].\n");
             break;
 
         default:
