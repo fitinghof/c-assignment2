@@ -82,7 +82,6 @@ size_t *calculate_thread_allocations(int num_threads, size_t total_memory)
         allocations[num_threads - i - 1] += fraction;
     }
 
-    free(allocations);
     return allocations;
 }
 /*
