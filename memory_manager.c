@@ -45,6 +45,7 @@ void *mem_alloc(size_t size) {
     // Insertion between blocks
     memory_block *walker = head;
     while (walker->next != NULL) {
+
         size_t available_space = walker->next->start - walker->end;
         if (available_space >= size) {
             memory_block *new_block = malloc(sizeof(*new_block));
@@ -56,6 +57,7 @@ void *mem_alloc(size_t size) {
             pthread_mutex_unlock(&allocation_lock);
             return ret_val;
         }
+        walker = walker->next;
     }
 
     // Insertion last
@@ -135,7 +137,10 @@ void mem_free(void *block) {
             pthread_mutex_unlock(&allocation_lock);
             return;
         }
+        walker = walker->next;
     }
+    pthread_mutex_unlock(&allocation_lock);
+    return;
 }
 /// @brief changes the size of the block, if possible without moving it, returns
 /// NULL if failed
