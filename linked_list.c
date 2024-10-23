@@ -20,13 +20,12 @@ void list_init(Node** head, size_t size) {
 /// @param data data for the new node
 void list_insert(Node** head, uint16_t data) {
     Node* new_node = mem_alloc(sizeof(Node));
-    pthread_rwlock_wrlock(&lock);
     if (!new_node) {
-        pthread_rwlock_unlock(&lock);
         return;
     }
     new_node->data = data;
     new_node->next = NULL;
+    pthread_rwlock_wrlock(&lock);
     if (*head == NULL) {
         *head = new_node;
         pthread_rwlock_unlock(&lock);

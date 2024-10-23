@@ -7,6 +7,8 @@
 #include <math.h>
 
 #include "memory_manager.h"  // Include your custom memory manager
+
+
 typedef struct Node {
     uint16_t data;      // Stores the data as an unsigned 16-bit integer
     struct Node *next;  // Pointer to the next node in the list
