@@ -17,14 +17,16 @@ Node *node_factory(void *start, void *end, Node *next) {
 
 pthread_mutex_t allocation_lock;
 
-Node *head;
+Node *free_head;
+Node *busy_head;
 void *memory_;
 size_t size_;
 
 /// @brief Initiates the memory mannager with @p size bytes of memory
 /// @param size bytes that will be available in the memory manager
 void mem_init(size_t size) {
-    head = NULL;
+    free_head = NULL;
+    busy_head = NULL;
     memory_ = malloc(size);
     size_ = size;
     pthread_mutex_init(&allocation_lock, NULL);
@@ -38,29 +40,29 @@ void *mem_alloc(size_t size) {
     if (size == 0) return memory_;
     pthread_mutex_lock(&allocation_lock);
 
-    // Insertion first
-    if (head == NULL || head->start - memory_ >= size) {
-        Node *new_block = node_factory(memory_, memory_ + size, head);
-        head = new_block;
-        pthread_mutex_unlock(&allocation_lock);
-        return memory_;
-    }
-
-    // Insertion between blocks or last
-    Node *walker = head;
-    while (walker != NULL) {
-        size_t space = (walker->next) ? walker->next->start - walker->end
-                                      : memory_ + size_ - walker->end;
-        if (space >= size) {
-            Node *new_block = node_factory(
-                walker->end, walker->end + size, walker->next);
-            walker->next = new_block;
-            void *ret_val = walker->end;
+    Node* prev_walker = NULL;
+    Node* walker = free_head;
+    while(walker != NULL) {
+        size_t space = walker->end - walker->start;
+        if(space > size){
+            void *ret_val = walker->start;
+            busy_head = node_factory(ret_val, ret_val + size, busy_head);
+            walker->start = ret_val + size;
             pthread_mutex_unlock(&allocation_lock);
             return ret_val;
         }
+        else if (space == size){
+            void *ret_val = walker->start;
+            busy_head = node_factory(ret_val, ret_val + size, busy_head);
+            prev_walker->next = walker->next;
+            free(walker);
+            pthread_mutex_unlock(&allocation_lock);
+            return ret_val;
+        }
+        prev_walker = walker;
         walker = walker->next;
     }
+
     pthread_mutex_unlock(&allocation_lock);
     return NULL;
 }
@@ -74,14 +76,14 @@ void *mem_alloc__nolock__(size_t size) {
     if (size == 0) return memory_;
 
     // insertion first
-    if (head == NULL || head->start - memory_ >= size) {
-        Node *new_block = node_factory(memory_, memory_ + size, head);
-        head = new_block;
+    if (free_head == NULL || free_head->start - memory_ >= size) {
+        Node *new_block = node_factory(memory_, memory_ + size, free_head);
+        free_head = new_block;
         return memory_;
     }
 
     // Insertion between blocks or last
-    Node *walker = head;
+    Node *walker = free_head;
     while (walker != NULL) {
         size_t available_space = (walker->next)
                                      ? walker->next->start - walker->end
@@ -99,35 +101,77 @@ void *mem_alloc__nolock__(size_t size) {
     return NULL;
 }
 
+
+
 /// @brief Frees @p block preventing memory leaks
 /// @param block
 void mem_free(void *block) {
     pthread_mutex_lock(&allocation_lock);
     // No nodes
-    if (!head) {
-        pthread_mutex_unlock(&allocation_lock);
+    if(block == NULL || !busy_head) return;
+
+    // find and free head;
+    Node* free_block;
+    if(busy_head->start == block){
+        free_block = busy_head;
+        busy_head = busy_head->next;
+    }
+
+    // find and free head;
+    Node* walker = busy_head;
+    while ( walker->next != NULL && walker->next->start != block )
+        walker = walker->next;
+    if( !walker ){
         return;
     }
-    // block is first, change head
-    if (head->start == block) {
-        Node *temp = head;
-        head = head->next;
-        free(temp);
-        pthread_mutex_unlock(&allocation_lock);
-        return;
-    }
-    // block is not first, find block
-    Node *walker = head;
-    while (walker->next != NULL) {
-        if (walker->next->start == block) {
-            Node *temp = walker->next;
-            walker->next = temp->next;
-            free(temp);
+    free_block = walker->next;
+    walker->next = free_block->next;
+
+    // Incase the block should be the first in the free list
+    if(block <= free_head->start) {
+        if(free_block->end == free_head->start){
+            free_head->start = block;
+            free(free_block);
+
             pthread_mutex_unlock(&allocation_lock);
             return;
         }
+        else {
+            free_block->next = free_head;
+            free_head = free_block;
+
+            pthread_mutex_unlock(&allocation_lock);
+            return;
+        }
+    }
+
+    // Find the right place for our free space
+    Node* prev_walker = free_head;
+    walker = free_head->next;
+    while(walker != NULL && walker->start <= free_block->end) {
+        // Merge previous free
+        if ( walker->end == block ){
+            // Might also be able to merge next free
+            if(walker->next != NULL && walker->next->start == free_block->end)
+                walker->end = walker->next->end;
+            else
+                walker->end = free_block->end;
+            pthread_mutex_unlock(&allocation_lock);
+            free(free_block);
+            return;
+        }
+        // Merge next free block
+        else if (walker->start == block){
+            prev_walker->end = free_block->end;
+            free(free_block);
+            pthread_mutex_unlock(&allocation_lock);
+            return;
+        }
+        prev_walker = walker;
         walker = walker->next;
     }
+    prev_walker->next = free_block;
+    free_block->next = walker;
     pthread_mutex_unlock(&allocation_lock);
     return;
 }
@@ -138,61 +182,28 @@ void mem_free(void *block) {
 /// for @p block
 /// @return
 void *mem_resize(void *block, size_t size) {
-    // Edge cases
-    if (size > size_) return NULL;
     if (!block) return mem_alloc(size);
-    if (size == 0) {
+    if (!size) {
         mem_free(block);
-        return NULL;
+        return;
     }
     pthread_mutex_lock(&allocation_lock);
-
-    // Find the node and the previous node incase we want to replace the old one
-    // after bypass
-    Node *before_node = NULL;
-    Node *node = head;
-    while (node != NULL && node->start != block) {
-        before_node = node;
-        node = node->next;
+    Node *block_node = busy_head;
+    while(block_node != NULL && block_node->start != block) {
+        block_node = block_node->next;
     }
-
-    // invalid block, return
-    if (!node) {
+    if(!block_node){
         pthread_mutex_unlock(&allocation_lock);
         return NULL;
     }
 
-    // Bypass old node so mem_alloc can properly return a new block
-    if (before_node)
-        before_node->next = node->next;
-    else
-        head = head->next;
-
-    // get new block
-    void *newblock = mem_alloc__nolock__(size);
-
-    // if allocation failed replace the old node and return NULL
-    if (!newblock) {
-        if (before_node)
-            before_node->next = node;
-        else
-            head = node;
-        pthread_mutex_unlock(&allocation_lock);
-        return NULL;
-    }
-
-    // Free old block no longer in use and copy over memory to new block, then
-    // return new block
-    size_t old_size = node->end - node->start;
-    free(node);
-    memcpy(newblock, block, (old_size < size) ? old_size : size);
+    
     pthread_mutex_unlock(&allocation_lock);
-    return newblock;
 }
 
 /// @brief gives back the memory used by the memory manager
 void mem_deinit() {
-    Node *walker = head;
+    Node *walker = free_head;
     while (walker != NULL) {
         Node *temp = walker;
         walker = walker->next;
@@ -200,6 +211,6 @@ void mem_deinit() {
     }
     free(memory_);
     size_ = 0;
-    head = NULL;
+    free_head = NULL;
     pthread_mutex_destroy(&allocation_lock);
 }
