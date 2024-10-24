@@ -179,7 +179,6 @@ void *mem_resize(void *block, size_t size) {
             before_node->next = node;
         else
             head = node;
-        before_node->next = node;
         pthread_mutex_unlock(&allocation_lock);
         return NULL;
     }
