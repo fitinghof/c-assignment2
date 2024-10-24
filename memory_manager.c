@@ -1,14 +1,14 @@
 #define _GNU_SOURCE
 #include "memory_manager.h"
 
-typedef struct memory_block {
+typedef struct Node {
     void *start;
     void *end;
-    struct memory_block *next;
-} memory_block;
+    struct Node *next;
+} Node;
 
-memory_block *memory_block_factory(void *start, void *end, memory_block *next) {
-    memory_block *new_block = malloc(sizeof(*new_block));
+Node *node_factory(void *start, void *end, Node *next) {
+    Node *new_block = malloc(sizeof(*new_block));
     new_block->start = start;
     new_block->end = end;
     new_block->next = next;
@@ -17,7 +17,7 @@ memory_block *memory_block_factory(void *start, void *end, memory_block *next) {
 
 pthread_mutex_t allocation_lock;
 
-memory_block *head;
+Node *head;
 void *memory_;
 size_t size_;
 
@@ -40,20 +40,19 @@ void *mem_alloc(size_t size) {
 
     // Insertion first
     if (head == NULL || head->start - memory_ >= size) {
-        memory_block *new_block =
-            memory_block_factory(memory_, memory_ + size, head);
+        Node *new_block = node_factory(memory_, memory_ + size, head);
         head = new_block;
         pthread_mutex_unlock(&allocation_lock);
         return memory_;
     }
 
     // Insertion between blocks or last
-    memory_block *walker = head;
+    Node *walker = head;
     while (walker != NULL) {
         size_t space = (walker->next) ? walker->next->start - walker->end
                                       : memory_ + size_ - walker->end;
         if (space >= size) {
-            memory_block *new_block = memory_block_factory(
+            Node *new_block = node_factory(
                 walker->end, walker->end + size, walker->next);
             walker->next = new_block;
             void *ret_val = walker->end;
@@ -76,20 +75,19 @@ void *mem_alloc__nolock__(size_t size) {
 
     // insertion first
     if (head == NULL || head->start - memory_ >= size) {
-        memory_block *new_block =
-            memory_block_factory(memory_, memory_ + size, head);
+        Node *new_block = node_factory(memory_, memory_ + size, head);
         head = new_block;
         return memory_;
     }
 
     // Insertion between blocks or last
-    memory_block *walker = head;
+    Node *walker = head;
     while (walker != NULL) {
         size_t available_space = (walker->next)
                                      ? walker->next->start - walker->end
                                      : memory_ + size_ - walker->end;
         if (available_space >= size) {
-            memory_block *new_block = memory_block_factory(
+            Node *new_block = node_factory(
                 walker->end, walker->end + size, walker->next);
             walker->next = new_block;
             walker->next = new_block;
@@ -112,17 +110,17 @@ void mem_free(void *block) {
     }
     // block is first, change head
     if (head->start == block) {
-        memory_block *temp = head;
+        Node *temp = head;
         head = head->next;
         free(temp);
         pthread_mutex_unlock(&allocation_lock);
         return;
     }
     // block is not first, find block
-    memory_block *walker = head;
+    Node *walker = head;
     while (walker->next != NULL) {
         if (walker->next->start == block) {
-            memory_block *temp = walker->next;
+            Node *temp = walker->next;
             walker->next = temp->next;
             free(temp);
             pthread_mutex_unlock(&allocation_lock);
@@ -151,8 +149,8 @@ void *mem_resize(void *block, size_t size) {
 
     // Find the node and the previous node incase we want to replace the old one
     // after bypass
-    memory_block *before_node = NULL;
-    memory_block *node = head;
+    Node *before_node = NULL;
+    Node *node = head;
     while (node != NULL && node->start != block) {
         before_node = node;
         node = node->next;
@@ -194,9 +192,9 @@ void *mem_resize(void *block, size_t size) {
 
 /// @brief gives back the memory used by the memory manager
 void mem_deinit() {
-    memory_block *walker = head;
+    Node *walker = head;
     while (walker != NULL) {
-        memory_block *temp = walker;
+        Node *temp = walker;
         walker = walker->next;
         free(temp);
     }
